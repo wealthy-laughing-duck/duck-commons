@@ -1,10 +1,13 @@
-duck-commons
-============
+The Wealthy Laughing Duck Project
+---------------------------------
 
-Part of Wealthy Laughing Duck project
--------------------------------------
+This repository is a [duck component](https://github.com/wealthy-laughing-duck).
+Visit [Wealthy Laughing Duck Project](http://wealthy-laughing-duck.github.io/) for more information.
 
-common files for duck components (sql, thrift, etc.)
+Common Resources
+================
+
+This repository holds files used among other duck components (sql, thrift, etc.)
 
 Dependencies
 ------------
