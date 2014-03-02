@@ -107,23 +107,31 @@ outcome_count = random.randint(5000, 7000)
 now = datetime.datetime(2009,5,5)
 str_now = now.date().isoformat()
 
-DB_VALUES['income'] = [(
-    _id,
-    random.choice(income_categories)[0],
-    random.uniform(random.randint(100, 200), random.randint(100, 1000) * 2),
-    None,
-    randomDate("2000-1-1 00:00:00", "2013-12-31 23:59:59", random.random()),
-    random.choice(DB_VALUES['users'])[0]
-) for _id in range(1, income_count)]
+tmp_incomes = []
+for _id in range(1, income_count):
+    tmp_category = random.choice(income_categories)
+    tmp_amount = random.uniform(random.randint(100, 200), random.randint(100, 1000) * 2)
+    tmp_user = random.choice(DB_VALUES['users'])
+    tmp_incomes.append((
+        _id, tmp_category[0], tmp_amount,
+        '%0.2f earned for %s stuff by %s' % (tmp_amount, tmp_category[2], tmp_user[1] + ' ' + tmp_user[2]),
+        randomDate("2000-1-1 00:00:00", "2013-12-31 23:59:59", random.random()),
+        tmp_user[0]
+    ))
+DB_VALUES['income'] = tmp_incomes
 
-DB_VALUES['outcome'] = [(
-    _id,
-    random.choice(income_categories)[0],
-    random.uniform(random.randint(10, 200), random.randint(100, 500)),
-    None,
-    randomDate("2000-1-1 00:00:00", "2013-12-31 23:59:59", random.random()),
-    random.choice(DB_VALUES['users'])[0]
-) for _id in range(1, outcome_count)]
+tmp_outcomes = []
+for _id in range(1, outcome_count):
+    tmp_category = random.choice(outcome_categories)
+    tmp_amount = random.uniform(random.randint(10, 200), random.randint(100, 500))
+    tmp_user = random.choice(DB_VALUES['users'])
+    tmp_outcomes.append((
+        _id, tmp_category[0], tmp_amount,
+        '%0.2f spent for %s stuff by %s' % (tmp_amount, tmp_category[2], tmp_user[1] + ' ' + tmp_user[2]),
+        randomDate("2000-1-1 00:00:00", "2013-12-31 23:59:59", random.random()),
+        tmp_user[0]
+    ))
+DB_VALUES['outcome'] = tmp_outcomes
 
 content = 'USE `%s`;\n\n' % (DB_NAME,)
 for table in DB_ORDER:
