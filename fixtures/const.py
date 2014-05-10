@@ -1,46 +1,18 @@
-import random
-
-random.seed()
-
-import datetime, time
-
-# http://stackoverflow.com/a/553320/769384
-def strTimeProp(start, end, format, prop):
-    """Get a time at a proportion of a range of two formatted times.
-
-    start and end should be strings specifying times formated in the
-    given format (strftime-style), giving an interval [start, end].
-    prop specifies how a proportion of the interval to be taken after
-    start.  The returned time will be in the specified format.
-    """
-    stime = time.mktime(time.strptime(start, format))
-    etime = time.mktime(time.strptime(end, format))
-    ptime = stime + prop * (etime - stime)
-    return time.strftime(format, time.localtime(ptime))
-
-def randomDate(start, end, prop):
-    return strTimeProp(start, end, '%Y-%m-%d %H:%M:%S', prop)
-
-#==============================================================================
-
-DB_NAME = 'duck_database'
-DB_TABLES = {
+SCHEMA = {
     'users': ['id', 'first_name', 'last_name', 'email_address', 'username', 'algorithm', 'salt', 'password', 'is_active', 'is_super_admin', 'last_login', 'created_at', 'updated_at'],
     'category': ['id', 'parent_id', 'name', 'type', 'created_at', 'updated_at', 'created_by', 'updated_by'],
     'income': ['id', 'category_id', 'amount', 'description', 'created_at', 'created_by'],
     'outcome': ['id', 'category_id', 'amount', 'description', 'created_at', 'created_by']
 }
-DB_ORDER = ['users', 'category', 'income', 'outcome']
-DB_VALUES = {}
 
-DB_VALUES['users'] = [
+USERS = [
     (1, 'Paul', 'McCartney', 'paul.mccartney@beatles.com', 'pmc', 'sha1', '9137e482c18a1a9bb34ef7b992c79929', '2085e867458db5de8660402a0f50a8cf7d446235', 1, 1, '2011-10-18 19:22:27', '2011-10-18 19:22:27', '2011-10-18 19:22:27'),
     (2, 'John', 'Lennon', 'john.lennon@beatles.com', 'jl', 'sha1', '023b9c69a98e8bd0fa0960cf61ceb015', '8302ab7ba2febf30101dca94f046116652292f78', 1, 1, '2011-10-18 19:22:27', '2011-10-18 19:22:27', '2011-10-18 19:22:27'),
     (3, 'George', 'Harrison', 'george.harrison@beatles.com', 'gh', 'sha1', 'c69a961908e8bd0f960ceb015a03bcf2', '8302ab7ba2febf30101dca94f046116652292f78', 1, 1, '2011-10-18 19:22:27', '2011-10-18 19:22:27', '2011-10-18 19:22:27'),
     (4, 'Ringo', 'Starr', 'ringo.starr@beatles.com', 'rs', 'sha1', 'aa0fb90823158bde961ceb0960cf0c69', '8302ab7ba2febf30101dca94f046116652292f78', 1, 1, '2011-10-18 19:22:27', '2011-10-18 19:22:27', '2011-10-18 19:22:27')
 ]
 
-DB_VALUES['category'] = [
+CATEGORIES = [
     (1, None, 'food', 'outcome', '2011-10-18 19:22:27', '2011-10-18 19:22:27', 2, 2),
     (2, None, 'bills', 'outcome', '2011-10-18 19:22:27', '2011-10-18 19:22:27', 2, 2),
     (3, None, 'electronics', 'outcome', '2011-10-18 19:22:27', '2011-10-18 19:22:27', 2, 2),
@@ -97,52 +69,3 @@ DB_VALUES['category'] = [
     (54, 17, 'debentures', 'income', '2012-01-02 14:34:32', '2012-01-02 14:34:32', 2, 2),
     (55, 17, 'real estate', 'income', '2012-05-25 15:10:21', '2012-05-25 15:10:21', 2, 2)
 ]
-
-income_categories = [row for row in DB_VALUES['category'] if row[3] == 'income']
-outcome_categories = [row for row in DB_VALUES['category'] if row[3] == 'outcome']
-
-income_count = random.randint(1000, 2000)
-outcome_count = random.randint(5000, 7000)
-
-now = datetime.datetime(2009,5,5)
-str_now = now.date().isoformat()
-
-tmp_incomes = []
-for _id in range(1, income_count):
-    tmp_category = random.choice(income_categories)
-    tmp_amount = random.uniform(random.randint(100, 200), random.randint(100, 1000) * 2)
-    tmp_user = random.choice(DB_VALUES['users'])
-    tmp_incomes.append((
-        _id, tmp_category[0], tmp_amount,
-        '%0.2f earned for %s stuff by %s' % (tmp_amount, tmp_category[2], tmp_user[1] + ' ' + tmp_user[2]),
-        randomDate("2000-1-1 00:00:00", "2013-12-31 23:59:59", random.random()),
-        tmp_user[0]
-    ))
-DB_VALUES['income'] = tmp_incomes
-
-tmp_outcomes = []
-for _id in range(1, outcome_count):
-    tmp_category = random.choice(outcome_categories)
-    tmp_amount = random.uniform(random.randint(10, 200), random.randint(100, 500))
-    tmp_user = random.choice(DB_VALUES['users'])
-    tmp_outcomes.append((
-        _id, tmp_category[0], tmp_amount,
-        '%0.2f spent for %s stuff by %s' % (tmp_amount, tmp_category[2], tmp_user[1] + ' ' + tmp_user[2]),
-        randomDate("2000-1-1 00:00:00", "2013-12-31 23:59:59", random.random()),
-        tmp_user[0]
-    ))
-DB_VALUES['outcome'] = tmp_outcomes
-
-content = 'USE `%s`;\n\n' % (DB_NAME,)
-for table in DB_ORDER:
-    fields = ', '.join('`%s`' % (field) for field in DB_TABLES[table])
-    values = []
-    for row in DB_VALUES[table]:
-        row = ('\'' + str(cell) + '\'' if cell else 'NULL' for cell in row)
-        values.append('(' + ', '.join(row) + ')')
-    values = ',\n'.join(values)
-    content += 'INSERT INTO `%s` (%s) VALUES\n%s;\n\n' % (table, fields, values)
-
-f = open('fixtures.sql', 'w')
-f.write(content)
-f.close()
