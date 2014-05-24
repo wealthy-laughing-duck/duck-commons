@@ -41,51 +41,89 @@ def summary(files):
     content = 'Following files generated successfully:' + ''.join('\n - ' + f for f in files)
     print content
 
-def generate_values():
-    result_values = {
-        'users': USERS,
-        'category': CATEGORIES
-    }
+def zip_values(fields, values):
+    return dict(zip(fields, values))
 
+def generate_values(users, categories):
     counts = generate_random_counts()
+
+    filter_categories = lambda category_type: [row for row in categories if row['type'] == category_type]
+    income_categories = filter_categories('income')
+    outcome_categories = filter_categories('outcome')
+
+    random_date = lambda: random_from_to_datetime(str_begin, str_end, random.random())
     str_begin, str_end = '2000-1-1 00:00:00', time.strftime(DATE_FORMAT)
 
-    filter_categories = lambda category_type: [row for row in CATEGORIES if row[3] == category_type]
-    random_user = lambda: random.choice(result_values['users'])
+    random_user = lambda: random.choice(users)
+    user_fullname = lambda user: user['first_name'] + ' ' + user['last_name']
+
     random_income_category = lambda: random.choice(income_categories)
     random_outcome_category = lambda: random.choice(outcome_categories)
-    random_date = lambda: random_from_to_datetime(str_begin, str_end, random.random())
 
-    tmp_incomes = []
-    income_categories = filter_categories('income')
+    random_income_amount = lambda: round(random.uniform(random.randint(100, 200), random.randint(100, 1000) * 2), 2)
+    random_outcome_amount = lambda: round(random.uniform(random.randint(10, 200), random.randint(100, 500)), 2)
+
+    income_pattern = '%0.2f earned for %s stuff by %s'
+    outcome_pattern = '%0.2f spent for %s stuff by %s'
+    description = lambda pattern, operation: pattern % (operation['amount'], operation['category']['name'], user_fullname(operation['user']))
+
+    incomes = []
     for _id in range(1, counts['income']):
-        tmp_user = random_user()
-        tmp_category = random_income_category()
-        tmp_amount = random.uniform(random.randint(100, 200), random.randint(100, 1000) * 2)
-        tmp_incomes.append((
-            _id, tmp_category[0], tmp_amount,
-            '%0.2f earned for %s stuff by %s' % (tmp_amount, tmp_category[2], tmp_user[1] + ' ' + tmp_user[2]),
-            random_date(), tmp_user[0]
-        ))
-    result_values['income'] = tmp_incomes
+        operation = {
+            'id': _id,
+            'category': random_income_category(),
+            'user': random_user(),
+            'created_at': random_date(),
+            'amount': random_income_amount()
+        }
+        operation['description'] = description(income_pattern, operation)
+        incomes.append(operation)
 
-    tmp_outcomes = []
-    outcome_categories = filter_categories('outcome')
+    outcomes = []
     for _id in range(1, counts['outcome']):
-        tmp_user = random_user()
-        tmp_category = random_outcome_category()
-        tmp_amount = random.uniform(random.randint(10, 200), random.randint(100, 500))
-        tmp_outcomes.append((
-            _id, tmp_category[0], tmp_amount,
-            '%0.2f spent for %s stuff by %s' % (tmp_amount, tmp_category[2], tmp_user[1] + ' ' + tmp_user[2]),
-            random_date(), tmp_user[0]
-        ))
-    result_values['outcome'] = tmp_outcomes
+        operation = {
+            'id': _id,
+            'category': random_outcome_category(),
+            'user': random_user(),
+            'created_at': random_date(),
+            'amount': random_outcome_amount()
+        }
+        operation['description'] = description(outcome_pattern, operation)
+        outcomes.append(operation)
 
-    return result_values
+    return {
+        'users': users,
+        'category': categories,
+        'income_category': income_categories,
+        'outcome_category': outcome_categories,
+        'income': incomes,
+        'outcome': outcomes
+    }
 
-def generate_sql():
-    raw = generate_values()
+#for _id in range(1, counts['outcome']):
+#    user = random_user()
+#    category = random_outcome_category()
+#    amount = random_outcome_amount()
+#    user_fullname = ' '.join(user[1:3])
+#    category_name = category[2]
+#    comment = outcome_pattern % (amount, category_name, user_fullname)
+#    category_id = category[0] if foreign_keys else category[2]
+#    created_by = user[0] if foreign_keys else user_fullname
+#    outcomes.append((_id, category_id, amount, comment, random_date(), created_by))
+
+leave_unchanged = lambda _: _
+
+def operation2sql(record):
+    return {
+        'id': record['id'],
+        'category_id': record['category']['id'],
+        'amount': record['amount'],
+        'description': record['description'],
+        'created_at': record['created_at'],
+        'created_by': record['user']['id']
+    }
+
+def generate_sql(users, categories):
     config = {
         'host': 'localhost',
         'dbname': 'duck_database',
@@ -93,7 +131,17 @@ def generate_sql():
         'password': 'wXyqhWzlF0uO20j8'
     }
     order = ['users', 'category', 'income', 'outcome']
+    parse = {
+        'users': leave_unchanged,
+        'category': leave_unchanged,
+        'income': operation2sql,
+        'outcome': operation2sql,
+    }
     files = []
+
+    raw = generate_values(users, categories)
+    str_field = lambda value: '\'' + str(value) + '\'' if value else 'NULL'
+    bracketise = lambda row: '(' + ', '.join(row) + ')'
 
     filepath = path('sql', 'fixtures.sql')
     fixtures = 'USE `%s`;\n\n' % (config['dbname'],)
@@ -101,8 +149,9 @@ def generate_sql():
         fields = ', '.join('`%s`' % (field) for field in SCHEMA[table])
         values = []
         for row in raw[table]:
-            row = ('\'' + str(cell) + '\'' if cell else 'NULL' for cell in row)
-            values.append('(' + ', '.join(row) + ')')
+            row = parse[table](row)
+            record = (str_field(row[field]) for field in SCHEMA[table])
+            values.append(bracketise(record))
         values = ',\n'.join(values)
         fixtures += 'INSERT INTO `%s` (%s) VALUES\n%s;\n\n' % (table, fields, values)
     dump_content(fixtures, filepath)
@@ -117,15 +166,52 @@ def generate_sql():
 
     summary(files)
 
-def generate_json(wrap=True):
+def user2json(record):
+    return {
+        'id': record['id'],
+        'firstName': record['first_name'],
+        'lastName': record['last_name'],
+        'emailAddress': record['email_address'],
+        'username': record['username']
+    }
+
+def category2json(record):
+    return {
+        'id': record['id'],
+        'parentId': record['parent_id'],
+        'name': record['name']
+    }
+
+def operation2json(record):
+    return {
+        'id': record['id'],
+        'category' : record['category']['name'],
+        'amount': record['amount'],
+        'description': record['description'],
+        'createdAt': record['created_at'],
+        'user': record['user']['first_name'] + ' ' + record['user']['last_name']
+    }
+
+def generate_json(users, categories, wrap=True):
     import json
+    parse = {
+        'users': user2json,
+        'category': category2json,
+        'income': operation2json,
+        'outcome': operation2json,
+    }
+    map_datatype = lambda datatype: 'category' if datatype in ('income_category', 'outcome_category') else datatype
+
     files = []
-    for filetype, raw in generate_values().iteritems():
-        schema = SCHEMA[filetype]
-        values = [dict(zip(schema, v)) for v in raw]
+    for table, raw in generate_values(users, categories).iteritems():
+        if table == 'category':
+            continue # this table is used only in SQL, see order variable in generate_sql
+        datatype = map_datatype(table)
+        schema = SCHEMA[datatype]
+        values = [parse[datatype](record) for record in raw]
         if wrap:
             values = { 'objects': values }
-        filepath = path('json', filetype + '.json')
+        filepath = path('json', table + '.json')
         dump_content(json.dumps(values), filepath)
         files.append(filepath)
     summary(files)
@@ -140,12 +226,15 @@ args = parser.parse_args()
 
 output_format = args.format.lower()
 if output_format in ('sql', 'json'):
-    random.seed()
     from const import SCHEMA, USERS, CATEGORIES
+    random.seed()
 
+    user_schema, category_schema = SCHEMA['users'], SCHEMA['category']
+    users = [zip_values(user_schema, user) for user in USERS]
+    categories = [zip_values(category_schema, category) for category in CATEGORIES]
     if output_format == 'sql':
-        generate_sql()
+        generate_sql(users, categories)
     elif output_format == 'json':
-        generate_json()
+        generate_json(users, categories)
 else:
     raise Exception("Unsupported format %s" % (output_format,))
